@@ -11,6 +11,7 @@ import { commonFlags, outputFlags } from '../../flags.mts'
 import { checkCommandInput } from '../../utils/check-input.mts'
 import { determineOrgSlug } from '../../utils/determine-org-slug.mts'
 import { getOutputKind } from '../../utils/get-output-kind.mts'
+import { getRepoName, gitBranch } from '../../utils/git.mts'
 import { meowOrExit } from '../../utils/meow-with-subcommands.mts'
 import { getFlagListOutput } from '../../utils/output-formatting.mts'
 import { hasDefaultToken } from '../../utils/sdk.mts'
@@ -19,7 +20,11 @@ import { detectManifestActions } from '../manifest/detect-manifest-actions.mts'
 
 import type { CliCommandConfig } from '../../utils/meow-with-subcommands.mts'
 
-const { DRY_RUN_BAILING_NOW } = constants
+const {
+  DRY_RUN_BAILING_NOW,
+  SOCKET_DEFAULT_BRANCH,
+  SOCKET_DEFAULT_REPOSITORY,
+} = constants
 
 const config: CliCommandConfig = {
   commandName: 'create',
@@ -228,13 +233,13 @@ async function run(
     dryRun,
   )
 
-  // Accept zero or more paths. Default to cwd() if none given.
-  let targets = cli.input || [process.cwd()]
-
   const cwd =
     cwdOverride && cwdOverride !== 'process.cwd()'
       ? path.resolve(process.cwd(), String(cwdOverride))
       : process.cwd()
+
+  // Accept zero or more paths. Default to cwd() if none given.
+  let targets = cli.input || [cwd]
 
   const sockJson = await readOrDefaultSocketJson(cwd)
 
@@ -255,7 +260,7 @@ async function run(
       branchName = sockJson.defaults.scan.create.branch
       logger.info('Using default --branch from socket.json:', branchName)
     } else {
-      branchName = 'socket-default-branch'
+      branchName = (await gitBranch(cwd)) || SOCKET_DEFAULT_BRANCH
     }
   }
   if (!repoName) {
@@ -263,7 +268,7 @@ async function run(
       repoName = sockJson.defaults.scan.create.repo
       logger.info('Using default --repo from socket.json:', repoName)
     } else {
-      repoName = 'socket-default-repository'
+      repoName = (await getRepoName(cwd)) || SOCKET_DEFAULT_REPOSITORY
     }
   }
   if (typeof report !== 'boolean') {
@@ -289,8 +294,7 @@ async function run(
   let updatedInput = false
 
   if (!targets.length && !dryRun && interactive) {
-    const received = await suggestTarget()
-    targets = received ?? []
+    targets = await suggestTarget()
     updatedInput = true
   }
 

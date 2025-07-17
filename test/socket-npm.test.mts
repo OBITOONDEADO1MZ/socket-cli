@@ -57,6 +57,8 @@ for (const npmDir of ['npm9', 'npm10', 'npm11']) {
               cwd: path.join(npmFixturesPath, 'lacking-typosquat'),
               env: {
                 ...process.env,
+                // Lazily access constants.processEnv.
+                ...constants.processEnv,
                 // Lazily access constants.ENV.PATH.
                 PATH: `${npmBinPath}:${constants.ENV.PATH}`,
               },
@@ -71,7 +73,11 @@ for (const npmDir of ['npm9', 'npm10', 'npm11']) {
           })
           spawnPromise.catch((e: unknown) => {
             spawnPromise.process.kill('SIGINT')
-            if (e?.['stderr'].includes('typosquat')) {
+            if (
+              e?.['stderr'].includes('typosquat') ||
+              // Sometimes our token quota is exceeded.
+              e?.['stderr'].includes('Too Many Requests')
+            ) {
               resolve('OK')
             } else {
               reject(e)

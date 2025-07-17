@@ -5,6 +5,7 @@ import { logger } from '@socketsecurity/registry/lib/logger'
 import { input, select } from '@socketsecurity/registry/lib/prompts'
 
 import constants from '../../constants.mts'
+import { getRepoName, gitBranch } from '../../utils/git.mts'
 import {
   type SocketJson,
   readSocketJson,
@@ -12,6 +13,8 @@ import {
 } from '../../utils/socketjson.mts'
 
 import type { CResult } from '../../types.mts'
+
+const { SOCKET_DEFAULT_BRANCH, SOCKET_DEFAULT_REPOSITORY } = constants
 
 export async function setupScanConfig(
   cwd: string,
@@ -77,7 +80,7 @@ export async function setupScanConfig(
       if (!sockJson.defaults.scan.create) {
         sockJson.defaults.scan.create = {}
       }
-      const result = await configureScan(sockJson.defaults.scan.create)
+      const result = await configureScan(sockJson.defaults.scan.create, cwd)
       if (!result.ok || result.data.canceled) {
         return result
       }
@@ -129,11 +132,13 @@ async function configureScan(
   config: NonNullable<
     NonNullable<NonNullable<SocketJson['defaults']>['scan']>['create']
   >,
+  cwd = process.cwd(),
 ): Promise<CResult<{ canceled: boolean }>> {
   const defaultRepoName = await input({
     message:
       '(--repo) What repo name (slug) should be reported to Socket for this dir?',
-    default: config.repo || 'socket-default-repository',
+    default:
+      config.repo || (await getRepoName(cwd)) || SOCKET_DEFAULT_REPOSITORY,
     required: false,
     // validate: async string => bool
   })
@@ -141,7 +146,7 @@ async function configureScan(
     return canceledByUser()
   }
   if (defaultRepoName) {
-    // Even if it's 'socket-default-repository' store it because if we change
+    // Even if it's SOCKET_DEFAULT_REPOSITORY store it because if we change
     // this default then an existing user probably would not expect the change?
     config.repo = defaultRepoName
   } else {
@@ -151,7 +156,7 @@ async function configureScan(
   const defaultBranchName = await input({
     message:
       '(--branch) What branch name (slug) should be reported to Socket for this dir?',
-    default: config.branch || 'socket-default-branch',
+    default: config.branch || (await gitBranch(cwd)) || SOCKET_DEFAULT_BRANCH,
     required: false,
     // validate: async string => bool
   })
@@ -159,7 +164,7 @@ async function configureScan(
     return canceledByUser()
   }
   if (defaultBranchName) {
-    // Even if it's 'socket-default-branch' store it because if we change
+    // Even if it's SOCKET_DEFAULT_BRANCH store it because if we change
     // this default then an existing user probably would not expect the change?
     config.branch = defaultBranchName
   } else {

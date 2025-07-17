@@ -70,7 +70,7 @@ export async function getAlertsMapFromPurls(
   const { spinner } = options
 
   const uniqPurls = arrayUnique(purls)
-  debugDir('inspect', { purls: uniqPurls })
+  debugDir('silly', { purls: uniqPurls })
 
   let { length: remaining } = uniqPurls
   const alertsByPurl: AlertsByPurl = new Map()
@@ -83,12 +83,12 @@ export async function getAlertsMapFromPurls(
 
   spinner?.start(getText())
 
-  const sockSdkResult = await setupSdk(getPublicToken())
-  if (!sockSdkResult.ok) {
+  const sockSdkCResult = await setupSdk(getPublicToken())
+  if (!sockSdkCResult.ok) {
     spinner?.stop()
     throw new Error('Auth error: Try to run `socket login` first')
   }
-  const sockSdk = sockSdkResult.data
+  const sockSdk = sockSdkCResult.data
 
   const alertsMapOptions = {
     overrides: options.overrides,

@@ -5,7 +5,7 @@ import {
   genericSocketBranchParser,
   getSocketBranchFullNameComponent,
   getSocketBranchPurlTypeComponent,
-} from './git.mts'
+} from './socket-git.mts'
 import { getPurlObject } from '../../utils/purl.mts'
 
 import type { FixEnv } from './fix-env-helpers.mts'
@@ -34,11 +34,11 @@ export function getPrsForPurl(
     }
   }
 
-  if (isDebug('notice,inspect')) {
+  if (isDebug('notice,silly')) {
     const fullName = resolvePackageName(partialPurlObj)
     if (prs.length) {
       debugFn('notice', `found: ${prs.length} PRs for ${fullName}`)
-      debugDir('inspect', { prs })
+      debugDir('silly', { prs })
     } else if (fixEnv.prs.length) {
       debugFn('notice', `miss: 0 PRs found for ${fullName}`)
     }

@@ -1,11 +1,12 @@
-import { debugFn } from '@socketsecurity/registry/lib/debug'
+import { joinAnd } from '@socketsecurity/registry/lib/arrays'
+import { debugFn, isDebug } from '@socketsecurity/registry/lib/debug'
 
-import { getBaseGitBranch, gitRepoInfo } from './git.mts'
 import { getSocketPrs } from './pull-request.mts'
 import constants from '../../constants.mts'
+import { getBaseBranch, getRepoInfo } from '../../utils/git.mts'
 
-import type { RepoInfo } from './git.mts'
 import type { PrMatch } from './pull-request.mts'
+import type { RepoInfo } from '../../utils/git.mts'
 
 function ciRepoInfo(): RepoInfo | null {
   // Lazily access constants.ENV.GITHUB_REPOSITORY.
@@ -35,11 +36,32 @@ export interface FixEnv {
 }
 
 export async function getFixEnv(): Promise<FixEnv> {
-  const baseBranch = await getBaseGitBranch()
+  const baseBranch = await getBaseBranch()
   const gitEmail = constants.ENV.SOCKET_CLI_GIT_USER_EMAIL
   const gitUser = constants.ENV.SOCKET_CLI_GIT_USER_NAME
   const githubToken = constants.ENV.SOCKET_CLI_GITHUB_TOKEN
   const isCi = !!(constants.ENV.CI && gitEmail && gitUser && githubToken)
+
+  if (
+    // If isCi is false,
+    !isCi &&
+    // but some CI checks are passing,
+    (constants.ENV.CI || gitEmail || gitUser || githubToken) &&
+    // then log about it when in debug mode.
+    isDebug('notice')
+  ) {
+    const envVars = [
+      ...(constants.ENV.CI ? [] : ['process.env.CI']),
+      ...(gitEmail ? [] : ['process.env.SOCKET_CLI_GIT_USER_EMAIL']),
+      ...(gitUser ? [] : ['process.env.SOCKET_CLI_GIT_USER_NAME']),
+      ...(githubToken ? [] : ['process.env.GITHUB_TOKEN']),
+    ]
+    debugFn(
+      'notice',
+      `miss: fixEnv.isCi is false, expected ${joinAnd(envVars)} to be set`,
+    )
+  }
+
   let repoInfo: RepoInfo | null = null
   if (isCi) {
     repoInfo = ciRepoInfo()
@@ -48,8 +70,9 @@ export async function getFixEnv(): Promise<FixEnv> {
     if (isCi) {
       debugFn('notice', 'falling back to `git remote get-url origin`')
     }
-    repoInfo = await gitRepoInfo()
+    repoInfo = await getRepoInfo()
   }
+
   const prs =
     isCi && repoInfo
       ? await getSocketPrs(repoInfo.owner, repoInfo.repo, {
@@ -57,6 +80,7 @@ export async function getFixEnv(): Promise<FixEnv> {
           states: 'all',
         })
       : []
+
   return {
     baseBranch,
     gitEmail,

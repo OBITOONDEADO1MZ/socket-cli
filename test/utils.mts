@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { it } from 'vitest'
 
 import { spawn } from '@socketsecurity/registry/lib/spawn'
+import { stripAnsi } from '@socketsecurity/registry/lib/strings'
 
 import constants from '../src/constants.mts'
 
@@ -52,21 +53,34 @@ export async function invokeNpm(
       [entryPath, ...args],
       {
         cwd: npmFixturesPath,
-        env: { ...process.env, ...env },
+        env: {
+          ...process.env,
+          // Lazily access constants.processEnv.
+          ...constants.processEnv,
+          ...env,
+        },
       },
     )
     return {
       status: true,
       code: 0,
-      stdout: toAsciiSafeString(normalizeLogSymbols(output.stdout)),
-      stderr: toAsciiSafeString(normalizeLogSymbols(output.stderr)),
+      stdout: toAsciiSafeString(
+        normalizeLogSymbols(stripAnsi(output.stdout.trim())),
+      ),
+      stderr: toAsciiSafeString(
+        normalizeLogSymbols(stripAnsi(output.stderr.trim())),
+      ),
     }
   } catch (e: unknown) {
     return {
       status: false,
       code: e?.['code'],
-      stdout: toAsciiSafeString(normalizeLogSymbols(e?.['stdout'] ?? '')),
-      stderr: toAsciiSafeString(normalizeLogSymbols(e?.['stderr'] ?? '')),
+      stdout: toAsciiSafeString(
+        normalizeLogSymbols(stripAnsi(e?.['stdout']?.trim() ?? '')),
+      ),
+      stderr: toAsciiSafeString(
+        normalizeLogSymbols(stripAnsi(e?.['stderr']?.trim() ?? '')),
+      ),
     }
   }
 }

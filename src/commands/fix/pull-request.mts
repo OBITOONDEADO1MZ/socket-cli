@@ -20,7 +20,7 @@ import {
   getSocketBranchPattern,
   getSocketPullRequestBody,
   getSocketPullRequestTitle,
-} from './git.mts'
+} from './socket-git.mts'
 import constants from '../../constants.mts'
 import { safeStatsSync } from '../../utils/fs.mts'
 import { getPurlObject } from '../../utils/purl.mts'
@@ -39,11 +39,13 @@ function getOctokit() {
     if (!SOCKET_CLI_GITHUB_TOKEN) {
       debugFn('notice', 'miss: SOCKET_CLI_GITHUB_TOKEN env var')
     }
-    _octokit = new Octokit({
+    const octokitOptions = {
       auth: SOCKET_CLI_GITHUB_TOKEN,
       // Lazily access constants.ENV.GITHUB_API_URL.
       baseUrl: constants.ENV.GITHUB_API_URL,
-    })
+    }
+    debugDir('inspect', { octokitOptions })
+    _octokit = new Octokit(octokitOptions)
   }
   return _octokit
 }
@@ -478,14 +480,16 @@ export async function openPr(
   const purlObj = getPurlObject(purl)
   const octokit = getOctokit()
   try {
-    return await octokit.pulls.create({
+    const octokitPullsCreateParams = {
       owner,
       repo,
       title: getSocketPullRequestTitle(purlObj, newVersion, workspace),
       head: branch,
       base: baseBranch,
       body: getSocketPullRequestBody(purlObj, newVersion, workspace),
-    })
+    }
+    debugDir('inspect', { octokitPullsCreateParams })
+    return await octokit.pulls.create(octokitPullsCreateParams)
   } catch (e) {
     let message = `Failed to open pull request`
     const errors =
@@ -530,17 +534,21 @@ export async function setGitRemoteGithubRepoUrl(
   repo: string,
   token: string,
   cwd = process.cwd(),
-): Promise<void> {
+): Promise<boolean> {
+  const { host } = new URL(constants.ENV.GITHUB_SERVER_URL)
+  const url = `https://x-access-token:${token}@${host}/${owner}/${repo}`
   const stdioIgnoreOptions: SpawnOptions = {
     cwd,
     stdio: isDebug('stdio') ? 'inherit' : 'ignore',
   }
-  const { host } = new URL(constants.ENV.GITHUB_SERVER_URL)
-  const url = `https://x-access-token:${token}@${host}/${owner}/${repo}`
+  const quotedCmd = `\`git remote set-url origin ${url}\``
+  debugFn('stdio', `spawn: ${quotedCmd}`)
   try {
     await spawn('git', ['remote', 'set-url', 'origin', url], stdioIgnoreOptions)
+    return true
   } catch (e) {
-    debugFn('error', 'caught: unexpected error')
+    debugFn('error', `caught: ${quotedCmd} failed`)
     debugDir('inspect', { error: e })
   }
+  return false
 }
